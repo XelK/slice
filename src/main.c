@@ -15,40 +15,147 @@
 #include <string.h>
 
 
-
 #define PORT 8080
 #define MAXPENDING 5
 #define BUFFERSIZE 1000
 #define T200        "template/200.html"
 #define T301        "template/301.template"
 
+typedef struct _tmessage{
+        char method[10];
+        char path[100];
+        char version[10];
+} tmessage;
+
 void cleanExit(){ exit(0);}
 
-void handleClient(int client){
-    char buffer[BUFFERSIZE];
-    char buffer2[BUFFERSIZE];
-    int msg;
+void getMessage(char buffer[BUFFERSIZE]);
+void postMessage(char buffer[BUFFERSIZE]);
+void handeClient(int client,tmessage message);
+
+
+void extract(char buffer[BUFFERSIZE],tmessage message) {
+    for(int i=0;i<strlen(buffer);i++){
+        if( buffer[i] != (int)' ')
+            printf("%c",buffer[i]);
+        else
+            printf("\n");
+    }
+    printf("\n");
+
+    printf("\n\n\n");
+
+    int i=0;
+    int x=0;
+    for(i;buffer[i]!=(int)' ';i++){
+        message.method[x]=buffer[i];
+        x++;
+        //strcat(message.method,buffer[i]);
+    }
+    x=0;
+    for(i++;buffer[i]!=(int)' ';i++){
+        message.path[x]=buffer[i];
+        x++;
+        //strcat(message.path,buffer[i]);
+    }
+    x=0;
+    for(i++;i<strlen(buffer);i++){
+        message.version[x]=buffer[i];
+        x++;
+        //strcat(message.version,buffer[i]);
+    }
+
+    printf("Extracted Method: %s\nPath: %s\nVersion: %s\n",message.method,message.path,message.version);
+
+}
+
+void getMessage(char buffer[BUFFERSIZE]){
     FILE *fp;
-    printf("1\n");
+    char con[BUFFERSIZE];
+
+    printf("\n Ricevuto GET:\n%s\n-------\n",buffer);
+    
+
+    // string manipulation
+    
+    memset(buffer,0,BUFFERSIZE); //pulisco il buffer        
+    fp=fopen(T200, "r" );
+    while(fgets(con,BUFFERSIZE,fp)!=NULL)
+        strcat(buffer,con);
+    fclose(fp);
+    printf("getMessage: %s\n",buffer);
+}
+
+void postMessage(char buffer[BUFFERSIZE]){
+    FILE *fp;
+    char con[BUFFERSIZE];
+
+    printf("\nRicevuto POST:\n%s\n-------\n",buffer);
+    memset(buffer,0,BUFFERSIZE); //pulisco il buffer        
+    fp=fopen(T200, "r" );
+    while(fgets(con,BUFFERSIZE,fp)!=NULL)
+        strcat(buffer,con);
+    fclose(fp);
+}
+
+void handleClient(int client,tmessage message){
+    char buffer[BUFFERSIZE];
+    int msg;
     if((msg=recv(client,buffer,BUFFERSIZE,0))<0){
         fprintf(stderr,"Error in recv()!\n");
     }
-    if(msg>0){
-        memset(buffer,0,BUFFERSIZE); //pulisco il buffer
+    printf("\nMessage received:\n%s\n---------\n",buffer);
+    
+    // if(msg>0){
+    //     extract(buffer,message);
+    //     //if(message.method=="GET") // || message.method=="HEAD")
+    //     if (strcmp(message.method,"GET"))
+    //         getMessage(buffer);
+    //     else if(strcmp(message.method,"POST"))
+    //         postMessage(buffer);
+        
+    //     printf("Method: %s\nPath: %s\nVersion: %s\n",message.method,message.path,message.version);
 
-        char con[BUFFERSIZE];
-        fp=fopen(T200, "r" );
-        while(fgets(con,BUFFERSIZE,fp)!=NULL)
-            strcat(buffer,con);
+    //     printf("\nMessage to send:\n%s\n---------\n",buffer);
+    //     if (send(client,buffer,sizeof(buffer),0)!=msg){
+    //         printf(stderr,"Error in send()!\n");
+    //         exit(1);
+    //     }
+    // }
+        
+    // extract(buffer,message);
 
-        fclose(fp);
-        printf("this: %s\n",buffer);
-        int dim=sizeof(buffer);
+    // if(msg>0){
+        
+    //     if(strcmp(message.method,"GET")){
+    //         getMessage(buffer);
+    //     }
+    //     else if(strstr(buffer,"HEAD")){
+    //         getMessage(buffer);
+    //     }       
+    //     else if(strstr(buffer,"POST"))
+    //         postMessage(buffer);
 
-        memset(buffer2,0,BUFFERSIZE);
-        sprintf(buffer2,"HTTP/1.1 200\ncontent-type: text/html\ncontent-length: %d\n\n",strlen(buffer));
-        strcat(buffer2,buffer);
-        if (send(client,buffer2,sizeof(buffer2),0)!=msg){
+
+    //     printf("\nMessage to send:\n%s\n---------\n",buffer);
+    //     if (send(client,buffer,sizeof(buffer),0)!=msg){
+    //         printf(stderr,"Error in send()!\n");
+    //         exit(1);
+    //     }
+    // }
+
+    FILE *fp;
+    char con[BUFFERSIZE];
+
+    if (msg>0){
+            memset(buffer,0,BUFFERSIZE); //pulisco il buffer        
+    fp=fopen(T200, "r" );
+    while(fgets(con,BUFFERSIZE,fp)!=NULL)
+        strcat(buffer,con);
+    fclose(fp);
+    printf("getMessage: %s\n",buffer);
+            printf("\nMessage to send:\n%s\n---------\n",buffer);
+        if (send(client,buffer,sizeof(buffer),0)!=msg){
             printf(stderr,"Error in send()!\n");
             exit(1);
         }
@@ -64,6 +171,8 @@ int main(int argc, char const *argv[])
     struct sockaddr_in addr;
     unsigned short port;
     int pid;
+    tmessage message;
+
     if ((sock = socket(AF_INET,SOCK_STREAM,0))<0){
         fprintf(stderr,"Error in socket creation!\n");
         exit(1);
@@ -97,7 +206,7 @@ int main(int argc, char const *argv[])
         pid=fork();
         if(pid == 0){            
             printf("Client connected!\n");
-            handleClient(client);
+            handleClient(client,message);
             close(client);
             exit(0);
         }
