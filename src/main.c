@@ -31,20 +31,24 @@ void cleanExit(){ exit(0);}
 
 void getMessage(char buffer[BUFFERSIZE]);
 void postMessage(char buffer[BUFFERSIZE]);
-void handeClient(int client,tmessage message);
+void handeClient(int client);
+//void extract(char buffer[BUFFERSIZE]);
 
 
+/*
+    void extract(char from[BUFFERSIZE],tmessage message)
+*/
 void extract(char buffer[BUFFERSIZE],tmessage message) {
-    for(int i=0;i<strlen(buffer);i++){
-        if( buffer[i] != (int)' ')
-            printf("%c",buffer[i]);
-        else
-            printf("\n");
-    }
-    printf("\n");
+    // for(int i=0;i<strlen(buffer);i++){
+    //     if( buffer[i] != (int)' ')
+    //         printf("%c",buffer[i]);
+    //     else
+    //         printf("\n");
+    // }
+    // printf("\n");
 
-    printf("\n\n\n");
-
+    // printf("\n\n\n");
+    
     int i=0;
     int x=0;
     for(i;buffer[i]!=(int)' ';i++){
@@ -66,7 +70,7 @@ void extract(char buffer[BUFFERSIZE],tmessage message) {
     }
 
     printf("Extracted Method: %s\nPath: %s\nVersion: %s\n",message.method,message.path,message.version);
-
+    //return message
 }
 
 void getMessage(char buffer[BUFFERSIZE]){
@@ -98,14 +102,74 @@ void postMessage(char buffer[BUFFERSIZE]){
     fclose(fp);
 }
 
-void handleClient(int client,tmessage message){
-    char buffer[BUFFERSIZE];
+void handleClient(int client){
+    char readMsg[BUFFERSIZE], writeMsg[BUFFERSIZE];
     int msg;
-    if((msg=recv(client,buffer,BUFFERSIZE,0))<0){
+    if((msg=recv(client,readMsg,BUFFERSIZE,0))<0){
         fprintf(stderr,"Error in recv()!\n");
     }
-    printf("\nMessage received:\n%s\n---------\n",buffer);
+    printf("\nMessage received:\n%s\n---------\n",readMsg);
     
+    FILE *fp;
+    char bufFile[BUFFERSIZE];
+    tmessage message;
+
+
+    printf("client01: %d\n",client);
+
+    // printf("______________BEFORE: %s\n\n%s\n______________BEFORE\n",readMsg,message);
+    //extract(readMsg,message);
+
+int i=0;
+    int x=0;
+    for(i;readMsg[i]!=(int)' ';i++){
+        message.method[x]=readMsg[i];
+        x++;
+        //strcat(message.method,buffer[i]);
+    }
+    x=0;
+    for(i++;readMsg[i]!=(int)' ';i++){
+        message.path[x]=readMsg[i];
+        x++;
+        //strcat(message.path,buffer[i]);
+    }
+    x=0;
+    for(i++;i<strlen(readMsg);i++){
+        message.version[x]=readMsg[i];
+        x++;
+        //strcat(message.version,buffer[i]);
+    }
+
+    // printf("______________AFTER: %s\n\n%s\n______________AFTER\n",readMsg,message);
+
+    // printf("\n***********************+ciaone\n");
+
+    if (msg>0){
+        // if(strcmp(message.method,"GET")){
+        //     printf("\nFind GET\n");
+        // }
+        memset(writeMsg,0,BUFFERSIZE); //pulisco il buffer        
+        fp=fopen(T200, "r" );
+        while(fgets(bufFile,BUFFERSIZE,fp)!=NULL)
+            strcat(writeMsg,bufFile);
+        fclose(fp);
+
+        //printf("getMessage: %s\n",readMsg);
+        printf("\nMessage to send:\n%s\n---------\n",writeMsg);
+        	// if (send(clntSocket, echoBuffer, recvMsgSize, 0) != recvMsgSize)
+			// printf("send() failed");
+
+        printf("client02: %d\n",client);
+
+        if (send(client,writeMsg,sizeof(writeMsg),0)!=sizeof(writeMsg)){
+            printf("errore in send\n");
+            exit(1);
+        }
+    }
+}
+
+
+
     // if(msg>0){
     //     extract(buffer,message);
     //     //if(message.method=="GET") // || message.method=="HEAD")
@@ -144,24 +208,6 @@ void handleClient(int client,tmessage message){
     //     }
     // }
 
-    FILE *fp;
-    char con[BUFFERSIZE];
-
-    if (msg>0){
-            memset(buffer,0,BUFFERSIZE); //pulisco il buffer        
-    fp=fopen(T200, "r" );
-    while(fgets(con,BUFFERSIZE,fp)!=NULL)
-        strcat(buffer,con);
-    fclose(fp);
-    printf("getMessage: %s\n",buffer);
-            printf("\nMessage to send:\n%s\n---------\n",buffer);
-        if (send(client,buffer,sizeof(buffer),0)!=msg){
-            printf(stderr,"Error in send()!\n");
-            exit(1);
-        }
-    }
-
-}
 
 int main(int argc, char const *argv[])
 {
@@ -171,7 +217,6 @@ int main(int argc, char const *argv[])
     struct sockaddr_in addr;
     unsigned short port;
     int pid;
-    tmessage message;
 
     if ((sock = socket(AF_INET,SOCK_STREAM,0))<0){
         fprintf(stderr,"Error in socket creation!\n");
@@ -179,8 +224,8 @@ int main(int argc, char const *argv[])
     }
     printf("3\n");
 
-    signal(SIGTERM,cleanExit);
-    signal(SIGINT,cleanExit);
+    // signal(SIGTERM,cleanExit);
+    // signal(SIGINT,cleanExit);
 
     memset(&addr,0,sizeof(addr));
     addr.sin_family=AF_INET;
@@ -206,7 +251,7 @@ int main(int argc, char const *argv[])
         pid=fork();
         if(pid == 0){            
             printf("Client connected!\n");
-            handleClient(client,message);
+            handleClient(client);
             close(client);
             exit(0);
         }
