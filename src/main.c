@@ -1,130 +1,31 @@
-#include <stdio.h> 			// Per printf() e fprintf()
-#include <sys/socket.h> 	// Per socket(),bind() e connect()
-#include <arpa/inet.h>		// Per sockaddr_in e inet_ntoa()
-#include <string.h>			// Per memset()
-#include <unistd.h>			// Per close()
-#include <stdlib.h>			// Per atoi() e exit()
-#include <sys/time.h>		// Per struct timeval
-
-#include <signal.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+ #include <stdio.h> 			// Per printf() e fprintf()
+ #include <sys/socket.h> 	// Per socket(),bind() e connect()
+ #include <arpa/inet.h>		// Per sockaddr_in e inet_ntoa()
+ #include <string.h>			// Per memset()
+ #include <unistd.h>			// Per close()
+ #include <stdlib.h>			// Per atoi() e exit()
+// #include <sys/time.h>		// Per struct timeval
 
 #define PORT 8080
 #define MAXPENDING 5
 #define BUFFERSIZE 1000
-#define T200        "template/200.html"
-#define T301        "template/301.template"
-
-typedef struct _tmessage{
-        char method[10];
-        char path[100];
-        char version[10];
-} tmessage;
-
-void cleanExit(){ exit(0);}
-void getMessage(char buffer[BUFFERSIZE]);
-void postMessage(char buffer[BUFFERSIZE]);
-void handeClient(int client);
 
 
-/*
-    void extract(char from[BUFFERSIZE],tmessage message)
-*/
-//void extract(char buffer[BUFFERSIZE],tmessage message) {
-tmessage extract(char buffer[BUFFERSIZE]) {
+void handleClient(int client);
 
-    int i=0;
-    int x=0;
-    tmessage message;
-    for(i;buffer[i]!=(int)' ';i++){
-        message.method[x]=buffer[i];
-        x++;
-        //strcat(message.method,buffer[i]);
-    }
-    x=0;
-    for(i++;buffer[i]!=(int)' ';i++){
-        message.path[x]=buffer[i];
-        x++;
-        //strcat(message.path,buffer[i]);
-    }
+char * search(char from[]);
+void prepMessage(int code, char *from, char *to, char * message);
+char * updateDB(char *to[]);
 
-    // x=0;
-    // for(i++;i<strlen(buffer);i++){
-    //     message.version[x]=buffer[i];
-    //     x++;
-    //     //strcat(message.version,buffer[i]);
-    // }
-
-    printf("Extracted Method: %s\nPath: %s\nVersion: %s\n",message.method,message.path,message.version);
-    return message;
-}
-
-void getMessage(char buffer[BUFFERSIZE]){
-    FILE *fp;
-    char con[BUFFERSIZE];
-
-    memset(buffer,0,BUFFERSIZE); //pulisco il buffer        
-    fp=fopen(T200, "r" );
-    while(fgets(con,BUFFERSIZE,fp)!=NULL)
-        strcat(buffer,con);
-    fclose(fp);
-    printf("getMessage: %s\n",buffer);
-}
-
-void postMessage(char buffer[BUFFERSIZE]){
-    FILE *fp;
-    char con[BUFFERSIZE];
-
-    memset(buffer,0,BUFFERSIZE);      
-    fp=fopen(T200, "r" );
-    while(fgets(con,BUFFERSIZE,fp)!=NULL)
-        strcat(buffer,con);
-    fclose(fp);
-}
-
-void handleClient(int client){
-    char readMsg[BUFFERSIZE], writeMsg[BUFFERSIZE];
-    int msg;
-    FILE *fp;
-    char bufFile[BUFFERSIZE];
-    tmessage message;
-
-    if((msg=recv(client,readMsg,BUFFERSIZE,0))<0){
-        fprintf(stderr,"Error in recv()!\n");
-    }
-
-    message=extract(readMsg);
-
-    if (msg>0){
-        if(strcmp(message.method,"POST") == 0){
-            printf("\nFind POST\n");
-            postMessage(writeMsg);
-        }
-        else if (strcmp(message.method,"GET") == 0){
-            printf("\nFind GET\n");
-            getMessage(writeMsg);
-        }
-
-        if (send(client,writeMsg,sizeof(writeMsg),0)!=sizeof(writeMsg)){
-            printf("errore in send\n");
-            exit(1);
-        }
-    }
-}
-
-int main(int argc, char const *argv[])
-{
+int main(){
+    
     int sock;
     int client;
     struct sockaddr_in addr;
-    unsigned short port;
     int pid;
 
-    if ((sock = socket(AF_INET,SOCK_STREAM,0))<0){
+
+   if ((sock = socket(AF_INET,SOCK_STREAM,0))<0){
         fprintf(stderr,"Error in socket creation!\n");
         exit(1);
     }
@@ -160,4 +61,117 @@ int main(int argc, char const *argv[])
             close(client);
         }
     }
+
+}
+
+
+void handleClient(int client){
+    char message[BUFFERSIZE];
+    int msg;
+
+    if((msg=recv(client,message,BUFFERSIZE,0))<0){
+        fprintf(stderr,"Errore in ricezione!\n");
+        exit(1);
+    }
+
+    printf("Messaggio ricevuto:\n%s\n",message);
+
+    char from[]=" "; 
+    char to[50];
+
+    char * temp;
+
+    if(strstr(message,"GET") || strstr(message,"HEAD")){
+        printf("GET/HEAD find!\n");
+  
+        int i;
+        int c=0;
+        if (strstr(message,"GET"))
+            i=5;
+        else
+            i=6;
+        while(message[i]!=' ' && message[i]!='\n'){
+            from[c++]=message[i];
+            if (message[++i]==' ')
+                from[c]='\0';
+        }
+        printf("from: %s\n",from);
+
+        if (strcmp(from," ")==0)
+            prepMessage(200,from," ",message);
+        else if (strcmp(temp=search(from)," ")!=0){
+            prepMessage(302,from,temp,message);
+        }
+        else
+            prepMessage(404,from," ",message);
+    }
+    else if(strstr(message,"POST")){
+        printf("POST find!\n");
+        temp=strstr(message,"url:");
+        for(int i=4;i<strlen(temp);i++){
+            to[i-4]=temp[i];
+        }
+        printf("to: %s\n",to);
+
+        if(strcmp(search(to)," ")==0){
+            prepMessage(200,from,updateDB(to),message);
+        }        
+
+    }
+    else{
+        printf("ERRORE! Methodo non supportato!\n");
+        prepMessage(405,from,"",message); //405 Method Not Allowed
+    }
+
+    printf("Message to reply:\n%s\nfine messaggio!\n",message);
+ //   if (send(client,message,sizeof(message),0)!=sizeof(message)){
+    if (send(client,message,strlen(message),0)!=sizeof(message)){
+        printf("errore in send\n");
+        exit(1);
+    }
+
+}
+
+char * search(char from[]){
+    char word[]="aaa";
+    printf("Searching...from: %s to: %s\n",from, word);
+
+    if(strcmp(from,word)==0){
+        printf("trovato %s\n",word);
+        return "https://xelk.me";
+    }
+    else{
+        printf("NON TROVATO!\n");
+        return " ";
+    }
+}
+
+void prepMessage(int code, char *from, char *to, char * message){
+    printf("Responding...\n");
+    printf("- from: %s\n- to:%s\n",from,to);
+
+    if (code==200){
+        printf("PREP-200\n");
+        strcpy(message,"HTTP/1.1 200 OK\nDate: Mon, 23 May 2005 22:38:34 GMT\nContent-Type: text/html; charset=UTF-8\nConnection: close\r\n\r\n");
+        strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title> Hello from slice server!</title>\n</head>\n<body>\n<center><h1>Slice server!</h1></center>\n</body>\n</html>");
+    }
+    if(code == 302){
+        printf("PREP-301\n");
+        strcpy(message,"HTTP/1.1 301 Moved Permanently\nServer: slice\nDate: Mon, 03 May 2021 17:44:08 GMT\nContent-Type: text/html; charset=UTF-8\n");
+        strcat(message,"Location: ");
+        strcat(message,to);
+        strcat(message,"\nAccept-Ranges: bytes\nConnection: close\r\n\r\n");
+        strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<title>301 Moved Permanently</title>\n</head>\n<body>\n<center><h1>301 Moved Permanently</h1></center>\n</body>\n</html>");
+    }
+    if(code==404){
+        printf("PREP-404\n");
+        strcpy(message,"HTTP/1.1 404\ncontent-type: text/html\r\n\r\n");
+        strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title>404 Not found!</title>\n</head>\n<body>\n<center><h1>404 Page Not found!</h1></center>\n</body>\n</html>");
+    }
+        printf("Message to send: %s\n\n",message);
+        printf("FINE!\n");
+}
+
+char * updateDB(char *to[]){
+    printf("Updating DB...\n");
 }
