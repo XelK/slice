@@ -9,13 +9,15 @@
 #define PORT 8080
 #define MAXPENDING 5
 #define BUFFERSIZE 1000
-
+#define MAXDB 5
+#define MAXURL 20
 
 void handleClient(int client);
 
 char * search(char from[]);
-void prepMessage(int code, char *from, char *to, char * message);
-char * updateDB(char *to[]);
+void prepMessage(int code, char from[], char to[], char * message);
+int updateDB(char DB[MAXDB][MAXURL], char from[]);
+char DB[MAXDB][MAXURL]={"","","","",""};
 
 int main(){
     
@@ -44,22 +46,15 @@ int main(){
         fprintf(stderr,"Error in listen()!\n");
         exit(1);
     }
+
     while(1){
         int cl = sizeof(client);
         if((client=accept(sock,(struct sockaddr *)&addr,&cl))<0){
             fprintf(stderr,"Error in accept()!\n");
             exit(1);
-        }
-        pid=fork();
-        if(pid == 0){            
-            printf("Client connected!\n");
+        }    
             handleClient(client);
             close(client);
-            exit(0);
-        }
-        else if(pid != 0){
-            close(client);
-        }
     }
 
 }
@@ -69,6 +64,9 @@ void handleClient(int client){
     char message[BUFFERSIZE];
     int msg;
 
+
+    memset(&message,0,sizeof(message));
+
     if((msg=recv(client,message,BUFFERSIZE,0))<0){
         fprintf(stderr,"Errore in ricezione!\n");
         exit(1);
@@ -76,7 +74,7 @@ void handleClient(int client){
 
     printf("Messaggio ricevuto:\n%s\n",message);
 
-    char from[]=" "; 
+    char from[50]=" "; 
     char to[50];
 
     char * temp;
@@ -97,25 +95,35 @@ void handleClient(int client){
         }
         printf("from: %s\n",from);
 
-        if (strcmp(from," ")==0)
+        if (strcmp(from," ")==0) // index.html
             prepMessage(200,from," ",message);
-        else if (strcmp(temp=search(from)," ")!=0){
+        else if (strcmp(temp=search(from),"")!=0){ // found in DB
             prepMessage(302,from,temp,message);
         }
         else
-            prepMessage(404,from," ",message);
+            prepMessage(404,from,"",message);
     }
     else if(strstr(message,"POST")){
         printf("POST find!\n");
         temp=strstr(message,"url:");
-        for(int i=4;i<strlen(temp);i++){
-            to[i-4]=temp[i];
-        }
-        printf("to: %s\n",to);
+        printf("temp: %s\n",temp);
 
-        if(strcmp(search(to)," ")==0){
-            prepMessage(200,from,updateDB(to),message);
-        }        
+        int x=(strlen("url:"));
+        int z=0;
+        while(x <= strlen(temp)){
+            if(x==strlen(temp))
+                from[z++]='\0';
+            else
+                from[z++]=temp[x++];
+        }
+
+        to[0]=updateDB(DB,from)+'0';
+
+        for(int i=0; i<MAXDB; i++){
+            printf("DB %d: %s\n",i,DB[i]);
+        }
+        prepMessage(201,from,to,message);
+    
 
     }
     else{
@@ -124,29 +132,25 @@ void handleClient(int client){
     }
 
     printf("Message to reply:\n%s\nfine messaggio!\n",message);
+    printDB(DB);
  //   if (send(client,message,sizeof(message),0)!=sizeof(message)){
-    if (send(client,message,strlen(message),0)!=sizeof(message)){
+    if (send(client,message,strlen(message),0)!=strlen(message)){
         printf("errore in send\n");
-        exit(1);
+    //    exit(1);
     }
 
 }
 
 char * search(char from[]){
-    char word[]="aaa";
-    printf("Searching...from: %s to: %s\n",from, word);
-
-    if(strcmp(from,word)==0){
-        printf("trovato %s\n",word);
-        return "https://xelk.me";
-    }
-    else{
-        printf("NON TROVATO!\n");
-        return " ";
-    }
+    int i=atoi(from);
+    printf("search: i: %d\n",i);
+    if(i>=0 && i<10)
+        return DB[i];
+    else
+        return "";
 }
 
-void prepMessage(int code, char *from, char *to, char * message){
+void prepMessage(int code, char from[], char to[], char * message){
     printf("Responding...\n");
     printf("- from: %s\n- to:%s\n",from,to);
 
@@ -154,6 +158,14 @@ void prepMessage(int code, char *from, char *to, char * message){
         printf("PREP-200\n");
         strcpy(message,"HTTP/1.1 200 OK\nDate: Mon, 23 May 2005 22:38:34 GMT\nContent-Type: text/html; charset=UTF-8\nConnection: close\r\n\r\n");
         strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title> Hello from slice server!</title>\n</head>\n<body>\n<center><h1>Slice server!</h1></center>\n</body>\n</html>");
+    }
+    if (code==201){
+        printf("PREP-201\n");
+        printf("recive: %s\n",from);
+        strcpy(message,"HTTP/1.1 200 OK\nDate: Mon, 23 May 2005 22:38:34 GMT\nContent-Type: text; charset=UTF-8\nConnection: close\r\n\r\n");
+        strcat(message,from);
+        strcat(message,"\n");
+        strcat(message,to);
     }
     if(code == 302){
         printf("PREP-301\n");
@@ -172,6 +184,23 @@ void prepMessage(int code, char *from, char *to, char * message){
         printf("FINE!\n");
 }
 
-char * updateDB(char *to[]){
+int updateDB(char DB[MAXDB][MAXURL], char from[]){
     printf("Updating DB...\n");
+
+    for (int i=0; i<MAXDB; i++){
+        if ( (int)strlen(DB[i]) == 0 ){
+            printf("updating %d\n",i);
+            memcpy(DB[i],from,strlen(from));
+            return i;
+        }
+        else
+            printf("cane!\n");
+    }
+    return -1;
+}
+
+void printDB(char DB[MAXDB][MAXURL]){
+    for(int i=0; i<MAXDB; i++){
+        printf("DB[%d]:%s\n",i,DB[i]);
+    }
 }
