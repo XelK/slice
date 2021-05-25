@@ -64,7 +64,7 @@ void handleClient(int client){
     memset(&message,0,sizeof(message));
     
     if((msg=recv(client,message,BUFFERSIZE,0))<0){
-        fprintf(stderr,"Errore in ricezione!\n");
+        fprintf(stderr,"Error in recive!\n");
         exit(1);
     }
 
@@ -74,8 +74,7 @@ void handleClient(int client){
     char * temp;
 
     if(strstr(message,"GET") || strstr(message,"HEAD")){
-        printf("GET/HEAD find!\n");
-  
+
         int i;
         int c=0;
         if (strstr(message,"GET"))
@@ -99,6 +98,7 @@ void handleClient(int client){
     else if(strstr(message,"POST")){
         temp=strstr(message,"url:");
     
+        // extract url passed with post
         int x=(strlen("url:"));
         int z=0;
         while(x <= strlen(temp)){
@@ -108,21 +108,22 @@ void handleClient(int client){
                 from[z++]=temp[x++];
         }
 
-        to[0]=updateDB(DB,from)+'0';
-
-        for(int i=0; i<MAXDB; i++){
-            printf("DB %d: %s\n",i,DB[i]);
+        int r=updateDB(DB,from);
+        if(r<0){
+            fprintf(stderr,"DB FULL!\n");
+            exit(1);
         }
-        prepMessage(201,from,to,message);
+
+        to[0]=r+'0';
+
+        prepMessage(201,from,to,message); //when DB updated!
     }
     else{
-        printf("ERRORE! Methodo non supportato!\n");
         prepMessage(405,from,"",message); //405 Method Not Allowed
     }
 
-    printf("Message to reply:\n%s\nfine messaggio!\n",message);
     if (send(client,message,strlen(message),0)!=strlen(message)){
-        printf("errore in send\n");
+        printf("Error in send\n");
         exit(1);
     }
 
@@ -130,7 +131,6 @@ void handleClient(int client){
 
 char * search(char from[]){
     int i=atoi(from);
-    printf("search: i: %d\n",i);
     if(i>=0 && i<10)
         return DB[i];
     else
@@ -151,8 +151,7 @@ void prepMessage(int code, char from[], char to[], char * message){
         strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title> Hello from slice server!</title>\n</head>\n<body>\n<center><h1>Slice server!</h1></center>\n</body>\n</html>");
     }
     if (code==201){
-        printf("recive: %s\n",from);
-        strcpy(message,"HTTP/1.1 200 OK\nDate: ");
+        strcpy(message,"HTTP/1.1 201 Created\nDate: ");
         strcat(message,t_date);
         strcat(message,"\nContent-Type: text; charset=UTF-8\nConnection: close\r\n\r\n");
         strcat(message,from);
@@ -160,7 +159,7 @@ void prepMessage(int code, char from[], char to[], char * message){
         strcat(message,to);
     }
     if(code == 301){
-        strcpy(message,"HTTP/1.1 301 Moved Permanently\nServer: slice\n");
+        strcpy(message,"HTTP/1.1 301 Moved Permanently\nServer: slice\nDate: ");
         strcat(message,t_date);
         strcat(message,"\nContent-Type: text/html; charset=UTF-8\n");
         strcat(message,"Location: ");
@@ -176,21 +175,16 @@ void prepMessage(int code, char from[], char to[], char * message){
     }
     if(code==405){
         strcpy(message,"HTTP/1.1 405\ncontent-type: text/html\r\n\r\n");
-        strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title>405 Not found!</title>\n</head>\n<body>\n<center><h1>404 Page Not found!</h1></center>\n</body>\n</html>");
+        strcat(message,"<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title>405 Method not allowed!</title>\n</head>\n<body>\n<center><h1>405 Method not allowed!</h1></center>\n</body>\n</html>");
     }
 }
 
 int updateDB(char DB[MAXDB][MAXURL], char from[]){
-    printf("Updating DB...\n");
-
     for (int i=0; i<MAXDB; i++){
         if ( (int)strlen(DB[i]) == 0 ){
-            printf("updating %d\n",i);
             memcpy(DB[i],from,strlen(from));
             return i;
         }
-        else
-            printf("cane!\n");
     }
     return -1;
 }
