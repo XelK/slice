@@ -1,7 +1,0 @@
-
-
-GET http://127.0.0.1
-
-
-
-GET http://localhost:8080/ciaooo HTTP/1.1
